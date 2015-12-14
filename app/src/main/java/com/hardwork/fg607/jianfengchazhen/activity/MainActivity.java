@@ -1,4 +1,4 @@
-package com.hardwork.fg607.jianfengchazhen.view;
+package com.hardwork.fg607.jianfengchazhen.activity;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;

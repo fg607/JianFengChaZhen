@@ -11,18 +11,19 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import com.hardwork.fg607.jianfengchazhen.R;
+import com.hardwork.fg607.jianfengchazhen.beans.Nail;
 import com.hardwork.fg607.jianfengchazhen.utils.BitmapUtil;
 import com.hardwork.fg607.jianfengchazhen.utils.DensityUtil;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by fg607 on 15-12-11.
  */
 public class MyView extends View implements Runnable,View.OnTouchListener{
 
-    private HashMap<Bitmap,Integer> mNailHashMap;
+    private List<Nail> mNailsRotateList;
     private boolean mIsRotate = false;
     private Paint mPaint = new Paint();
     private Context mContext;
@@ -35,13 +36,14 @@ public class MyView extends View implements Runnable,View.OnTouchListener{
     private int mNailNumerTextSize = 19;//dip
     private int mFailedTextSize = 21;//dip
     private int mConflictCount = 0;
-    private Bitmap mBitmap;
-    private int mRotate;
     private boolean mIsRuning = false;
     private int mMinRotate = 1;
     private int mSleepTime = 12;
     private boolean mIsAddNewNail = false;
     private boolean mIsDrawing = false;
+    private Bitmap mNailBitmap;
+    private Bitmap mConflicNailBitmap;
+    private Nail mConflicNail;
 
     public MyView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -65,24 +67,30 @@ public class MyView extends View implements Runnable,View.OnTouchListener{
         mIsRuning = true;
         mIsRotate = true;
 
-        mNailHashMap = new HashMap<>();
+        mNailsRotateList = new ArrayList<>();
         mViewSize =  mContext.getResources().getDisplayMetrics().widthPixels;
         mPaint.setTextAlign(Paint.Align.CENTER);
+
+        mNailBitmap = BitmapUtil.readBitmapById(mContext, R.drawable.nail);
+        mNailBitmap = BitmapUtil.scaleImage(mNailBitmap, mNailWidth, mNailHeight);
+        mConflicNailBitmap = BitmapUtil.readBitmapById(mContext, R.drawable.conflict_nail);
+        mConflicNailBitmap = BitmapUtil.scaleImage(mConflicNailBitmap, mNailWidth, mNailHeight);
+
+        mConflicNail = new Nail(mConflicNailBitmap,0);
 
         setOnTouchListener(this);
     }
 
     public void addNail(){
 
-        Bitmap bitmap = BitmapUtil.readBitmapById(mContext, R.drawable.nail);
-        bitmap = BitmapUtil.scaleImage(bitmap,mNailWidth,mNailHeight);
-        mNailHashMap.put(bitmap, 0);
+        mNailsRotateList.add(new Nail(mNailBitmap,0));
+
     }
 
     public void clickScreen(){
 
         if(!isRotated()){
-            mNailHashMap.clear();
+            mNailsRotateList.clear();
             startRotate();
         }else {
             mIsAddNewNail = true;
@@ -138,13 +146,10 @@ public class MyView extends View implements Runnable,View.OnTouchListener{
 
     private void drawConflictNail(Canvas canvas) {
 
-        Bitmap bitmap = BitmapUtil.readBitmapById(mContext, R.drawable.conflict_nail);
-        bitmap = BitmapUtil.scaleImage(bitmap,mNailWidth,mNailHeight);
+        mMatrix.setTranslate(mViewSize / 2 - mConflicNailBitmap.getWidth() / 2, mViewSize / 2);
+        mMatrix.postRotate(mConflicNail.getRotate(), mViewSize / 2, mViewSize / 2);
 
-        mMatrix.setTranslate(mViewSize / 2 - bitmap.getWidth() / 2, mViewSize / 2);
-        mMatrix.postRotate(0, mViewSize / 2, mViewSize / 2);
-
-        canvas.drawBitmap(bitmap, mMatrix, null);
+        canvas.drawBitmap(mConflicNail.getNailBitmap(), mMatrix, null);
     }
 
     public void prepareDraw() {
@@ -176,16 +181,17 @@ public class MyView extends View implements Runnable,View.OnTouchListener{
     public void updateNails(){
 
         //遍历HashMap改变角度
-        for(Map.Entry<Bitmap,Integer> entry:mNailHashMap.entrySet()){
-            mBitmap = entry.getKey();
-            mRotate = entry.getValue();
+        int size = mNailsRotateList.size();
+        int rotate;
+        for(int i = 0;i < size;i++){
 
-            if (mRotate == 360) {
-                mRotate = 0;
+            rotate = mNailsRotateList.get(i).getRotate();
+            if (rotate == 360) {
+                rotate = 0;
             }
 
-            mRotate += mMinRotate;
-            mNailHashMap.put(mBitmap, mRotate);
+            rotate += mMinRotate;
+            mNailsRotateList.get(i).setRotate(rotate);
         }
 
     }
@@ -198,7 +204,7 @@ public class MyView extends View implements Runnable,View.OnTouchListener{
     public void drawNailsNumber(Canvas canvas) {
         mPaint.setColor(Color.rgb(255, 255, 255));
         mPaint.setTextSize(mNailNumerTextSize);
-        canvas.drawText("" + mNailHashMap.size(), mViewSize / 2, mViewSize / 2 + mPaint.getTextSize()/2, mPaint);
+        canvas.drawText("" + mNailsRotateList.size(), mViewSize / 2, mViewSize / 2 + mPaint.getTextSize()/2, mPaint);
     }
 
     public void drawNails(Canvas canvas) {
@@ -206,20 +212,17 @@ public class MyView extends View implements Runnable,View.OnTouchListener{
         //清空碰撞检测标志
         mConflictCount = 0;
 
-        for(Map.Entry<Bitmap,Integer> entry:mNailHashMap.entrySet()){
-
-            Bitmap bitmap = entry.getKey();
-            int rotate = entry.getValue();
+        for(Nail nail:mNailsRotateList){
 
             if(mIsAddNewNail){
-                checkConflict(rotate);
+                checkConflict(nail.getRotate());
             }
 
+            mMatrix.setTranslate(mViewSize / 2 - mNailBitmap.getWidth() / 2, mViewSize / 2);
+            mMatrix.postRotate(nail.getRotate(), mViewSize / 2, mViewSize / 2);
 
-            mMatrix.setTranslate(mViewSize / 2 - bitmap.getWidth() / 2, mViewSize / 2);
-            mMatrix.postRotate(rotate, mViewSize / 2, mViewSize / 2);
+            canvas.drawBitmap(nail.getNailBitmap(), mMatrix, null);
 
-            canvas.drawBitmap(bitmap, mMatrix, null);
         }
     }
 
